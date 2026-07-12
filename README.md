@@ -1,295 +1,413 @@
 # rfo — Repo Forge Orchestrator
 
-> **GitHub-first repo orchestration CLI for humans and AI agents.**
-> Keep many repos synced, know what needs attention, and apply small safe automations
-> with a plan-then-apply workflow.
+<div align="center">
+  <img src="rfo_illustration.webp" alt="rfo — GitHub-first multi-repo orchestration for humans and agents" width="720">
+</div>
 
+<div align="center">
+
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)
+![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/quangdang46/repo_forge_orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/quangdang46/repo_forge_orchestrator/actions/workflows/ci.yml)
-[![Release](https://github.com/quangdang46/repo_forge_orchestrator/actions/workflows/release.yml/badge.svg)](https://github.com/quangdang46/repo_forge_orchestrator/actions/workflows/release.yml)
-[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](rust-toolchain.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/quangdang46/repo_forge_orchestrator?include_prereleases)](https://github.com/quangdang46/repo_forge_orchestrator/releases)
+
+</div>
+
+**GitHub-first multi-repo orchestration for humans and AI agents.**  
+Track many repos in SQLite, keep working copies synced, surface what needs attention, and run plan → apply → rollback automations with safety gates and JSON output.
+
+<div align="center">
+<h3>Quick Install</h3>
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh?$(date +%s)" \
+  | bash
+```
+
+</div>
 
 ---
 
-## What is `rfo`?
+## TL;DR
 
-`rfo` is a Rust CLI that orchestrates many GitHub repositories from one place:
+### The Problem
 
-- **Track** repos in a local SQLite database (the source of truth).
-- **Sync, status, prune** — keep working copies up to date.
-- **Inbox & health** — see what needs your attention, ranked by signal.
-- **Plan → apply → rollback** for risky operations (review, sweep, train).
-- **Safety gates** by default: secret scan, denylist, quality checks.
-- **JSON output** on every read command for scripting and AI consumption.
-- **MCP-friendly** so an AI agent gets structured context, not blind shell access.
+Managing dozens of GitHub repos by hand fails in predictable ways:
 
-It is the GitHub-first Rust evolution of the Python tool `ru` (`repo_updater`),
-preserving the daily UX while adding inspectable runs and AI-safe primitives.
+| Pain | Symptom |
+|------|---------|
+| Drift | Working copies behind / dirty / conflicted |
+| Noise inbox | Issues/PRs/CI mixed without ranking |
+| Blind automation | Scripts mutate without a reviewable plan |
+| Agent shell chaos | Models run raw `git`/`gh` with no safety gates |
+| No audit trail | “What did we change last Tuesday?” |
 
-> **Status:** early development — public API and command flags may change before
-> v1.0.
+### The Solution
+
+**rfo** is a Rust CLI that orchestrates many repos from one local SQLite source of truth:
+
+| Capability | Command surface |
+|------------|-----------------|
+| Track & sync | `add` · `import` · `sync` · `status` · `prune` |
+| Attention | `health` · `inbox` |
+| Risky ops | `review plan` · plan → apply → rollback |
+| Safety | secret scan · denylist · quality gates |
+| Agents | `--format json` · `robot-docs` · MCP-friendly structure |
+
+> **Status:** early development (v0.2.x) — public API and flags may shift before v1.0.
+
+### Why Use rfo?
+
+| Feature | What it does |
+|---------|--------------|
+| **Fleet inventory** | One SQLite DB for all tracked repos |
+| **First-class sync** | ff-only / rebase / merge, parallel, resume, autostash |
+| **Ranked attention** | Health scores + inbox instead of tab soup |
+| **Plan-then-apply** | Review/sweep flows produce plans before mutation |
+| **Agent-ready JSON** | Structured reads for coding agents and MCP |
+| **Doctor + self-update** | Diagnose, repair, upgrade in place |
 
 ---
 
-## Install
-
-### Linux / macOS (x86_64, aarch64)
+### Quick Example
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh | bash
+rfo init
+rfo add quangdang46/repo_forge_orchestrator
+rfo import --org my-org --limit 50
+rfo sync -j 4
+rfo status --format json
+rfo health
+rfo inbox
+rfo doctor
 ```
 
-The installer detects your platform, downloads the matching release archive
-from GitHub, **verifies its SHA256**, and places `rfo` in `~/.local/bin`.
+---
 
-Optional environment overrides:
+## Design Philosophy
 
-| Variable          | Default              | Purpose                              |
-|-------------------|----------------------|--------------------------------------|
-| `RFO_VERSION`     | `latest`             | Pin a specific tag, e.g. `v0.1.0`.   |
-| `RFO_INSTALL_DIR` | `$HOME/.local/bin`   | Where to place the binary.           |
-| `RFO_NO_VERIFY`   | unset                | Set to `1` to skip checksum (avoid). |
-| `RFO_FORCE`       | unset                | Set to `1` to overwrite silently.    |
+1. **GitHub-first, local source of truth.**  
+   Remote is GitHub; authority for *what we track and did* is local SQLite.
+
+2. **Plan before mutate.**  
+   Review, sweep, and train-style flows should produce an inspectable plan before apply.
+
+3. **Agents get JSON, not scraped TUI.**  
+   Prefer `--format json` and `robot-docs` over parsing human text.
+
+4. **Safety gates over clever scripts.**  
+   Secret scan, denylist paths, and quality checks beat “trust the model with raw git.”
+
+5. **Degrade cleanly.**  
+   Absent optional tools must not produce silent half-applies.
+
+---
+
+## How rfo Compares
+
+| Approach | Sync | Attention | Safe automation | Agent-ready |
+|----------|------|-----------|-----------------|-------------|
+| Manual `gh`/`git` | Manual | Manual | No | Fragile |
+| Ad-hoc scripts | Partial | No | Rarely | Opaque |
+| IDE multi-root | UI-only | Partial | No | Weak CLI |
+| **rfo** | First-class | Ranked inbox | Plan/apply | JSON + MCP |
+
+**When to use rfo:**
+- You maintain a fleet of GitHub repos (personal monorepo farm, org mirror, agent lab)
+- You want agents to sync/status/health without raw destructive git
+- You need an audit trail of runs and plans
+
+**When rfo might not be ideal:**
+- Single-repo day-to-day work (plain `git`/`gh` is enough)
+- Non-GitHub hosts as primary (secondary support only)
+- Fully offline environments without API/git network
+
+---
+
+## Installation
+
+### Linux / macOS
 
 ```bash
-# Pin a version
-RFO_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh | bash
-
-# Install system-wide
-RFO_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh | sudo -E bash
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh?$(date +%s)" | bash
 ```
 
-### Windows (x86_64, PowerShell 5.1+)
+Detects platform, downloads the release archive, **verifies SHA256**, installs to `~/.local/bin`.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RFO_VERSION` | `latest` | Pin tag, e.g. `v0.2.0` |
+| `RFO_INSTALL_DIR` | `$HOME/.local/bin` | Binary destination |
+| `RFO_NO_VERIFY` | unset | `1` skips checksum (avoid) |
+| `RFO_FORCE` | unset | `1` overwrites silently |
+
+### Windows (PowerShell 5.1+)
 
 ```powershell
 irm https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.ps1 | iex
 ```
 
-Installs `rfo.exe` into `%LOCALAPPDATA%\Programs\rfo` and adds it to your user
-`PATH`. Open a new terminal afterward.
+Installs `rfo.exe` to `%LOCALAPPDATA%\Programs\rfo` and updates user `PATH`.
 
-Optional `$env:` overrides: `RFO_VERSION`, `RFO_INSTALL_DIR`,
-`RFO_NO_VERIFY`, `RFO_NO_MODIFY_PATH`.
-
-### Build from source
-
-Requires [Rust 1.85+](rust-toolchain.toml).
+### From source
 
 ```bash
 git clone https://github.com/quangdang46/repo_forge_orchestrator.git
-cd repo_forge
+cd repo_forge_orchestrator
 cargo build --release
 ./target/release/rfo --version
 ```
 
-### Manual download
-
-Each tagged release on GitHub publishes:
-
-- `rfo-<target>.tar.xz` (Linux + macOS) and `rfo-<target>.zip` (Windows)
-- `*.sha256` checksum sidecar for every artifact
-- Universal `rfo-installer.sh` and `rfo-installer.ps1` (cargo-dist installers, version-pinned)
-
-See <https://github.com/quangdang46/repo_forge_orchestrator/releases>.
+Requires Rust **1.85+**.
 
 ---
 
-## Quickstart
+## Quick Start
 
 ```bash
-# 1. Initialize config + SQLite state directory
 rfo init
-
-# 2. Add some repos
 rfo add quangdang46/repo_forge_orchestrator
-rfo add https://github.com/torvalds/linux
-
-# 3. Bulk import a list (one "owner/repo" per line)
-rfo import repos.list
-
-# 4. Sync everything
+rfo import repos.list                 # or: rfo import --stars / --org ORG / --user USER
 rfo sync
-
-# 5. See the world
 rfo status
 rfo health
 rfo inbox
-
-# 6. Health-check the install
 rfo doctor
 ```
+
+### Robot / JSON surface
+
+```bash
+rfo health --format json
+rfo status --format json
+rfo list --format json
+rfo robot-docs commands
+rfo robot-docs quickstart
+```
+
+Prefer structured reads over scraping TUI/text when driving agents.
 
 ---
 
 ## Commands
 
 ```text
-rfo [--config-dir <DIR>] [--state-dir <DIR>] <COMMAND>
+rfo [--config-dir <DIR>] [--state-dir <DIR>] [--quiet] [--verbose] [--non-interactive] <COMMAND>
 ```
 
-| Group         | Command                              | What it does                                     |
-|---------------|--------------------------------------|--------------------------------------------------|
-| Setup         | `rfo init`                           | Create config + SQLite state directory.          |
-|               | `rfo doctor [--fix]`                 | Diagnose (and optionally repair) the install.    |
-| Repo manage   | `rfo add <spec>`                     | Track a repo (`owner/repo` or full URL).         |
-|               | `rfo remove <key>`                   | Stop tracking.                                   |
-|               | `rfo list [--owner <o>]`             | List tracked repos.                              |
-|               | `rfo import <file>`                  | Bulk add from a `repos.list` file.               |
-|               | `rfo prune --archived --missing`     | Drop archived or missing repos.                  |
-| Sync / status | `rfo sync [--strategy ff-only\|rebase\|merge]` | Update working copies.                  |
-|               | `rfo status [<repo>]`                | Branch / ahead / behind / dirty per repo.        |
-|               | `rfo health [<repo>]`                | Health score with `text` or `json` output.       |
-|               | `rfo inbox`                          | Prioritized list of repos needing attention.     |
-| Runs          | `rfo run list [--limit <N>]`         | Recent run records.                              |
-|               | `rfo run show <run-id>`              | Inspect a single run.                            |
-|               | `rfo run timeline <run-id>`          | Replay events for a run.                         |
-| Conflicts     | `rfo conflict list`                  | Show repos in a merge/rebase/cherry-pick state.  |
-|               | `rfo conflict explain <repo>`        | Explain the conflict.                            |
-|               | `rfo conflict abort <repo>`          | Abort the operation.                             |
-|               | `rfo conflict mark-resolved <repo>`  | Mark resolved.                                   |
-| Review        | `rfo review plan <repo> [--summary] [--risk]` | Create a review plan.                   |
-|               | `rfo review apply <plan-id>`         | Apply a plan after gates pass.                   |
-|               | `rfo review list-plans`              | List pending plans.                              |
-| Sweep         | `rfo sweep commit --message <msg>`   | Stage + commit with safety gates.                |
-|               | `rfo sweep agent [--repo-id <id>]`   | Run the sweep agent on a repo.                   |
-
-Run `rfo <command> --help` for full flags. Every command supporting structured
-output accepts `--format json`.
-
----
-
-## Common workflows
-
-### Daily check-in
+| Group | Command | What it does |
+|-------|---------|--------------|
+| Setup | `init` · `doctor [--fix]` | Config + SQLite; diagnose/repair |
+| Repos | `add` · `remove` · `list` · `import` · `prune` | Track inventory |
+| Sync | `sync` · `status` · `health` · `inbox` | Working copies + attention |
+| Runs | `run list/show/timeline` | Inspect past runs |
+| Conflicts | `conflict list/explain/abort/mark-resolved` | Merge/rebase recovery |
+| Review | `review plan` (+ apply/rollback flows) | Plan-then-apply |
+| Sweep | `sweep …` | Commit / agent sweep helpers |
+| Config | `config` | Show / set configuration |
+| Meta | `self-update` · `robot-docs` · `fork …` | Upgrade, machine docs, forks |
 
 ```bash
-rfo sync                # update working copies
-rfo inbox               # what needs me?
-rfo status              # any repos dirty / behind?
-```
+# Inventory
+rfo add owner/repo
+rfo import --org my-org --limit 100
+rfo list --owner my-org --format json
 
-### Reviewing a risky change
+# Sync fleet
+rfo sync --strategy ff-only -j 8 --autostash
+rfo sync --dry-run
+rfo sync --resume
 
-```bash
-rfo review plan owner/repo --summary "Bump deps" --risk medium
-rfo review list-plans
-rfo review apply plan-abc123
-rfo run timeline run-xyz789   # what actually happened
-```
-
-### AI sync across dirty repos
-
-```bash
-# Find repos with uncommitted changes
-rfo status
-
-# Auto-commit and push each dirty repo via AI
-rfo ai-sync --provider claude
-```
-
-### Safe commit gating
-
-```bash
-rfo sweep commit --path . --message "chore: format"
-# Refuses to commit if secret scan or denylist trigger.
-```
-
-### AI-friendly mode
-
-Every read command supports `--format json` and writes one JSON value per line,
-making `rfo` safe to drive from an LLM, a script, or an MCP host:
-
-```bash
-rfo status --format json | jq .
-rfo inbox  --format json
+# Attention
 rfo health --format json
+rfo status my-org/service-a
+rfo inbox
+
+# Safety-oriented automation
+rfo review plan
+rfo doctor --fix
+rfo self-update --check
+```
+
+Run `rfo --help` / `rfo <cmd> --help` for full flags.
+
+---
+
+## Safety Model
+
+| Gate | Default |
+|------|---------|
+| Secret scan | On before risky apply |
+| Denylist paths | Blocks dangerous globs |
+| Quality checks | Configurable |
+| Plan-first | Review/sweep produce plans before mutation |
+| Non-interactive | `--non-interactive` never prompts |
+
+Absent tools degrade cleanly where the design allows — never silent half-applies.
+
+---
+
+## Configuration & State
+
+| Path | Purpose |
+|------|---------|
+| Config dir | `$XDG_CONFIG_HOME/rfo` (override: `--config-dir`) |
+| State dir | `$XDG_STATE_HOME/rfo` (override: `--state-dir`) |
+| SQLite | Inventory, runs, health — under state dir |
+
+```bash
+rfo init
+rfo config
+rfo doctor
 ```
 
 ---
 
-## Configuration
-
-`rfo` follows the XDG Base Directory spec.
-
-| Path                         | Default                              | Override flag       |
-|------------------------------|--------------------------------------|---------------------|
-| Config directory             | `$XDG_CONFIG_HOME/rfo`               | `--config-dir <DIR>`|
-| State directory (SQLite, runs) | `$XDG_STATE_HOME/rfo`              | `--state-dir <DIR>` |
-| Cache directory              | `<state-dir>/cache`                  | (derived)           |
-| Tracked working copies       | `<state-dir>/projects/<owner>/<repo>`| (derived)           |
-
-On Windows, `dirs` resolves these to the standard per-user locations (e.g.
-`%APPDATA%`, `%LOCALAPPDATA%`).
-
-GitHub authentication is read from the standard environment variables
-(`GITHUB_TOKEN` / `GH_TOKEN`) and from `gh auth status` when present.
-
----
-
-## Output formats
-
-| Format | Where        | Use                                    |
-|--------|--------------|----------------------------------------|
-| `text` | default      | Human-readable, color-aware terminal.  |
-| `json` | `--format json` | One JSON document per line (NDJSON-friendly). |
-
-Multi-repo runs additionally emit an NDJSON event stream with `--output json`
-(see [`ADDITION.md`](ADDITION.md) §A4).
-
----
-
-## Crates
-
-`rfo` is a Cargo workspace. The user-facing binary lives in `crates/rfo`; the
-rest are libraries kept small and focused.
+## Architecture
 
 ```text
-crates/
-├── rfo/             # CLI entry point (the `rfo` binary)
-├── rfo-core/        # shared types, errors, IDs
-├── rfo-config/      # config file loader + XDG paths
-├── rfo-state/       # SQLite schema, queries, health
-├── rfo-output/      # text + JSON renderers
-├── rfo-jobs/        # run records, events, timeline
-├── rfo-git/         # local git: gix reads + shell-out mutations
-├── rfo-github/      # GitHub API client (octocrab)
-├── rfo-sync/        # add/remove/import/sync/status/prune
-├── rfo-context/     # context packs for humans + AI
-├── rfo-review/      # plan / apply / rollback workflow
-├── rfo-sweep/       # sweep commit, sweep agent
-├── rfo-ntm/         # ntm robot-mode integration
-├── rfo-ai-sync/     # AI-powered auto-commit for dirty repos
-├── rfo-dep-update/  # AI-powered dependency updates
-├── rfo-provider/    # provider abstraction (GitHub-only in v1)
-├── rfo-mcp/         # MCP server: resources + tools
-└── rfo-testkit/     # shared test fixtures
-xtask/               # project-level tasks (cargo xtask <task>)
+┌─────────────────────────────────────────────────────────────┐
+│ CLI (crates/rfo)                                            │
+│  init · add · sync · health · review · robot-docs · …       │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+     ┌───────────────────────┼───────────────────────┐
+     ▼                       ▼                       ▼
+┌──────────┐          ┌────────────┐          ┌────────────┐
+│ rfo-git  │          │ rfo-github │          │ rfo-sync   │
+│ local vc │          │ API / gh   │          │ strategies │
+└────┬─────┘          └─────┬──────┘          └─────┬──────┘
+     │                      │                       │
+     └──────────────────────┼───────────────────────┘
+                            ▼
+                   ┌────────────────┐
+                   │ rfo-state      │
+                   │ SQLite source  │
+                   │ of truth       │
+                   └────────┬───────┘
+                            │
+              ┌─────────────┼─────────────┐
+              ▼             ▼             ▼
+        rfo-review    rfo-jobs/sweep   rfo-mcp / output
+        plan/apply    run timeline     agent surfaces
+```
+
+Workspace highlights: `rfo-core`, `rfo-config`, `rfo-state`, `rfo-git`, `rfo-github`, `rfo-sync`, `rfo-review`, `rfo-sweep`, `rfo-mcp`, `rfo-provider`, …
+
+---
+
+## Troubleshooting
+
+### `rfo: command not found`
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh?$(date +%s)" | bash
+export PATH="$HOME/.local/bin:$PATH"
+rfo --version
+```
+
+### Auth / GitHub API errors
+
+Ensure `gh auth status` works (or the token env your install expects). `rfo doctor` reports common misconfigurations:
+
+```bash
+gh auth status
+rfo doctor
+rfo doctor --fix
+```
+
+### Sync conflicts
+
+```bash
+rfo conflict list
+rfo conflict explain <id>
+# resolve in the working tree, then:
+rfo conflict mark-resolved <id>
+# or abort:
+rfo conflict abort <id>
+```
+
+### Interrupted parallel sync
+
+```bash
+rfo sync --resume
+```
+
+### Checksum verification failed
+
+```bash
+# Retry with cache-bust; avoid RFO_NO_VERIFY unless debugging
+curl -fsSL "https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh?$(date +%s)" | bash
 ```
 
 ---
 
-## Building & contributing
+## Limitations
+
+### What rfo Doesn't Do (Yet)
+
+- **Not a full IDE** — orchestrates repos; does not replace review judgment
+- **GitHub-first** — other hosts are secondary
+- **Pre-v1.0** — flags and schemas may change
+
+### Known Limitations
+
+| Capability | Current state | Notes |
+|------------|---------------|-------|
+| Multi-host VCS | ⚠️ Secondary | GitHub is the primary path |
+| Network-free mode | ⚠️ Limited | Sync/import need API + git |
+| Pixel-perfect TUI | ❌ | CLI + JSON first |
+| Fully autonomous merge | ❌ | Plan/apply still needs human/agent policy |
+
+---
+
+## FAQ
+
+### vs plain `gh`?
+
+`gh` is one-repo oriented. `rfo` tracks a fleet, ranks attention, and gates automation.
+
+### Safe for agents?
+
+Prefer JSON reads + plan commands. Do not give bare destructive git without review plans. Use `--non-interactive` in automation.
+
+### Where is state?
+
+Local SQLite under the configured state directory (`rfo init` / `rfo doctor`).
+
+### Can I import stars / orgs?
 
 ```bash
-# Format + lint + test
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features
-cargo test --doc --workspace
-
-# Project-level helpers
-cargo xtask --help
+rfo import --stars --limit 100
+rfo import --org my-org
+rfo import --user someuser --limit 50
+rfo import repos.list
 ```
 
-Continuous integration runs the same commands on Linux, macOS, and Windows for
-each push and PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+### How do I upgrade?
 
-Releases are tag-driven (`v*.*.*`) and produced by
-[`cargo-dist`](https://github.com/axodotdev/cargo-dist) — see
-[`.github/workflows/release.yml`](.github/workflows/release.yml).
+```bash
+rfo self-update --check
+rfo self-update
+```
+
+---
+
+## About Contributions
+
+Please don't take this the wrong way, but I do not accept outside contributions for any of my projects. I simply don't have the mental bandwidth to review anything, and it's my name on the thing, so I'm responsible for any problems it causes; thus, the risk-reward is highly asymmetric from my perspective. I'd also have to worry about other "stakeholders," which seems unwise for tools I mostly make for myself for free. Feel free to submit issues, and even PRs if you want to illustrate a proposed fix, but know I won't merge them directly. Instead, I'll have Claude or Codex review submissions via `gh` and independently decide whether and how to address them. Bug reports in particular are welcome. Sorry if this offends, but I want to avoid wasted time and hurt feelings. I understand this isn't in sync with the prevailing open-source ethos that seeks community contributions, but it's the only way I can move at this velocity and keep my sanity.
 
 ---
 
 ## License
 
-[MIT](LICENSE) © Trần Quang Đãng (`quangdang46`).
+MIT (see [LICENSE](LICENSE)). Workspace metadata also allows `MIT OR Apache-2.0` for crate publishing flexibility.
+
+---
+
+<div align="center">
+
+**Many repos. One orchestrator. Plan before apply.**
+
+</div>
