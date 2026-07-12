@@ -1,16 +1,15 @@
 # rfo — Repo Forge Orchestrator
 
 <div align="center">
-  <img src="rfo_illustration.webp" alt="rfo — GitHub-first multi-repo orchestration for humans and agents" width="720">
+  <img src="rfo_illustration.webp" alt="rfo — GitHub-first multi-repo orchestration for humans and agents">
 </div>
 
 <div align="center">
 
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue.svg)
 ![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![CI](https://github.com/quangdang46/repo_forge_orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/quangdang46/repo_forge_orchestrator/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/quangdang46/repo_forge_orchestrator?include_prereleases)](https://github.com/quangdang46/repo_forge_orchestrator/releases)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Release](https://img.shields.io/github/v/release/quangdang46/repo_forge_orchestrator?include_prereleases)
 
 </div>
 
@@ -18,7 +17,6 @@
 Track many repos in SQLite, keep working copies synced, surface what needs attention, and run plan → apply → rollback automations with safety gates and JSON output.
 
 <div align="center">
-<h3>Quick Install</h3>
 
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrator/main/install.sh?$(date +%s)" \
@@ -26,6 +24,29 @@ curl -fsSL "https://raw.githubusercontent.com/quangdang46/repo_forge_orchestrato
 ```
 
 </div>
+
+---
+
+## 🤖 Agent Quickstart (Robot Mode)
+
+```bash
+# Fleet health
+rfo health --format json
+
+# Status of all tracked repos
+rfo status --format json
+
+# Ranked attention
+rfo inbox --format json
+
+# Plan automation
+rfo review plan --format json
+```
+
+**Output conventions**
+- stdout = structured data (JSON)
+- stderr = diagnostics, warnings
+- exit 0 = success
 
 ---
 
